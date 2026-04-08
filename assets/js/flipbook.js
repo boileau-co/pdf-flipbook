@@ -75,7 +75,6 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.buildToolbar();
 				this.buildThumbnailPanel();
 				this.updatePageDisplay();
-				this.wrapper.querySelector('.pfb-loading').remove();
 			} catch (err) {
 				console.error('PDF Flipbook error:', err);
 				this.wrapper.innerHTML = '<p class="pfb-error">Unable to load PDF.</p>';

@@ -35,26 +35,19 @@
 	padding: 40px 20px;
 }
 
-/* Viewport — clips zoomed content */
+/* Viewport — clips and scrolls when zoomed */
 .pfb-viewport {
+	position: relative;
 	width: 100%;
 	overflow: hidden;
-	display: flex;
-	justify-content: center;
 	background: #1a1a2e;
 }
 
-/* Inner — scaled by zoom */
-.pfb-inner {
-	transform-origin: top center;
-	transition: transform 0.2s ease;
-	display: flex;
-	justify-content: center;
-}
-
-/* Book container */
+/* Book container — StPageFlip renders here */
 .pfb-book {
-	margin: 20px auto;
+	position: relative;
+	margin: 0 auto;
+	transform-origin: top center;
 }
 
 /* Pages */

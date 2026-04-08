@@ -61,8 +61,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.thumbsOpen   = false;
 			this.flipBook     = null;
 			this.pdfDoc       = null;
-			this.pageWidth    = 0;
-			this.pageHeight   = 0;
+			this.pageRatio    = 1;      // height / width of a single PDF page
 
 			this.init();
 		}
@@ -86,15 +85,16 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.pdfDoc = await pdfjsLib.getDocument(this.pdfUrl).promise;
 			this.pageCount = this.pdfDoc.numPages;
 
-			// Render all pages to canvas at a reasonable resolution
-			const scale = 2; // render at 2× for crispness
+			// Get page dimensions from the first page (at scale 1) for aspect ratio
+			const firstPage = await this.pdfDoc.getPage(1);
+			const baseVp = firstPage.getViewport({ scale: 1 });
+			this.pageRatio = baseVp.height / baseVp.width;
+
+			// Render all pages to canvas at 2× for crispness
+			const scale = 2;
 			for (let i = 1; i <= this.pageCount; i++) {
 				const page = await this.pdfDoc.getPage(i);
 				const vp = page.getViewport({ scale });
-				if (i === 1) {
-					this.pageWidth = vp.width;
-					this.pageHeight = vp.height;
-				}
 				const canvas = document.createElement('canvas');
 				canvas.width = vp.width;
 				canvas.height = vp.height;
@@ -108,13 +108,10 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		buildDOM() {
 			this.wrapper.innerHTML = '';
 
-			// Viewport container (clips overflow for zoom)
+			// Viewport container — scrollable when zoomed
 			this.viewport = el('div', 'pfb-viewport');
 
-			// Inner container that we scale for zoom
-			this.inner = el('div', 'pfb-inner');
-
-			// Page container for StPageFlip
+			// Book container — StPageFlip mounts here
 			this.bookEl = el('div', 'pfb-book');
 
 			// Create page divs with canvases
@@ -125,44 +122,42 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.bookEl.appendChild(pageDiv);
 			});
 
-			this.inner.appendChild(this.bookEl);
-			this.viewport.appendChild(this.inner);
+			this.viewport.appendChild(this.bookEl);
 			this.wrapper.appendChild(this.viewport);
 
-			// Size the book container based on PDF aspect ratio
-			this.sizeViewport();
-			this._resizeHandler = () => this.sizeViewport();
+			// Set initial size
+			this.sizeToFit();
+			this._resizeHandler = () => this.sizeToFit();
 			window.addEventListener('resize', this._resizeHandler);
 		}
 
 		/**
-		 * Calculate and apply viewport/book dimensions from container width
-		 * and PDF page aspect ratio. In double-page mode the spread is 2 pages wide.
+		 * Size the viewport and book to fill the wrapper width, maintaining
+		 * the PDF page aspect ratio. A spread = 2 pages wide.
 		 */
-		sizeViewport() {
-			const wrapperWidth = this.wrapper.clientWidth;
-			const pageAspect = this.pageHeight / this.pageWidth; // e.g. 1.414 for A4
-			// In double-page (default) the spread shows 2 pages side by side
-			const spreadWidth = wrapperWidth;
-			const singlePageWidth = spreadWidth / 2;
-			const bookHeight = singlePageWidth * pageAspect;
+		sizeToFit() {
+			const w = this.wrapper.clientWidth;
+			const singleW = w / 2;
+			const h = Math.round(singleW * this.pageRatio);
 
-			this.bookEl.style.width = spreadWidth + 'px';
-			this.bookEl.style.height = bookHeight + 'px';
-			this.viewport.style.height = (bookHeight + 40) + 'px'; // 40px padding
+			this.baseHeight = h;
+			this.viewport.style.height = h + 'px';
+			this.bookEl.style.width = w + 'px';
+			this.bookEl.style.height = h + 'px';
+
+			if (this.flipBook) {
+				this.flipBook.update();
+			}
 		}
 
 		/* ---------- StPageFlip init ---------- */
 		initFlipBook() {
-			const bookW = this.bookEl.clientWidth / 2; // single page width in DOM
-			const bookH = this.bookEl.clientHeight;
-
+			// Use the PDF page's native aspect ratio for StPageFlip dimensions.
+			// size:'stretch' will scale to fill the bookEl container.
 			this.flipBook = new St.PageFlip(this.bookEl, {
-				width: bookW,
-				height: bookH,
+				width: 100,
+				height: Math.round(100 * this.pageRatio),
 				size: 'stretch',
-				maxWidth: bookW,
-				maxHeight: bookH,
 				maxShadowOpacity: 0.3,
 				showCover: true,
 				mobileScrollSupport: true,
@@ -292,7 +287,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			if (this.singleMode) {
 				if (this.singleFocus === 'right') {
 					this.singleFocus = 'left';
-					this.applySinglePan();
+					this.applyZoom();
 					this.updatePageDisplay();
 					return;
 				}
@@ -306,10 +301,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				const currentSpread = this.flipBook.getCurrentPageIndex();
 				const isSpread = this.flipBook.getOrientation() !== 'portrait';
 				if (isSpread && this.singleFocus === 'left') {
-					// Check if there's a right page in this spread
 					if (currentSpread + 1 < this.pageCount) {
 						this.singleFocus = 'right';
-						this.applySinglePan();
+						this.applyZoom();
 						this.updatePageDisplay();
 						return;
 					}
@@ -327,34 +321,37 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.btnViewMode.title = 'Two page view';
 				this.btnViewMode.setAttribute('aria-label', 'Two page view');
 				this.singleFocus = 'left';
-				this.applySinglePan();
 			} else {
 				this.btnViewMode.innerHTML = ICONS.singlePage;
 				this.btnViewMode.title = 'Single page view';
 				this.btnViewMode.setAttribute('aria-label', 'Single page view');
-				this.inner.style.transform = 'scale(' + this.zoom + ')';
-				this.inner.style.transformOrigin = 'top center';
 			}
+			this.applyZoom();
 			this.updatePageDisplay();
-		}
-
-		applySinglePan() {
-			const shiftX = this.singleFocus === 'right' ? -25 : 25;
-			const z = this.singleMode ? this.zoom * 2 : this.zoom;
-			this.inner.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
-			this.inner.style.transformOrigin = 'top center';
 		}
 
 		/* ---------- Zoom ---------- */
 		setZoom(level) {
 			this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, level));
 			this.zoomSlider.value = Math.round(this.zoom * 100);
+			this.applyZoom();
+		}
+
+		applyZoom() {
+			const z = this.singleMode ? this.zoom * 2 : this.zoom;
+			const h = Math.round(this.baseHeight * z);
+			this.viewport.style.height = h + 'px';
+			this.bookEl.style.transform = 'scale(' + z + ')';
+			this.bookEl.style.transformOrigin = 'top center';
+
+			// In single mode, shift to show one page
 			if (this.singleMode) {
-				this.applySinglePan();
-			} else {
-				this.inner.style.transform = 'scale(' + this.zoom + ')';
-				this.inner.style.transformOrigin = 'top center';
+				const shiftX = this.singleFocus === 'right' ? -25 : 25;
+				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
 			}
+
+			// Allow scrolling when zoomed beyond 1×
+			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
 		}
 
 		/* ---------- Fullscreen ---------- */

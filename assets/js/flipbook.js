@@ -2,8 +2,13 @@
  * PDF Flipbook — main application script.
  * Renders a PDF via pdf.js into a page-flip (StPageFlip) viewer with toolbar.
  */
+import * as pdfjsLib from './vendor/pdf.min.mjs';
+
 (function () {
 	'use strict';
+
+	// Configure pdf.js worker
+	pdfjsLib.GlobalWorkerOptions.workerSrc = pfbData.workerUrl;
 
 	/* ------------------------------------------------------------------ */
 	/*  Icons (inline SVG strings — Material-style, 24×24 viewBox)        */
@@ -79,12 +84,6 @@
 
 		/* ---------- PDF loading ---------- */
 		async loadPdf() {
-			const pdfjsLib = window.pdfjsLib || await import(pfbData.workerUrl.replace('pdf.worker.min.mjs', 'pdf.min.mjs'));
-
-			if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-				pdfjsLib.GlobalWorkerOptions.workerSrc = pfbData.workerUrl;
-			}
-
 			this.pdfDoc = await pdfjsLib.getDocument(this.pdfUrl).promise;
 			this.pageCount = this.pdfDoc.numPages;
 

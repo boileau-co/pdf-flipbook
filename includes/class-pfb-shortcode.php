@@ -27,15 +27,7 @@ class PFB_Shortcode {
 		$v = PFB_VERSION;
 		$url = PFB_PLUGIN_URL;
 
-		// Vendor libs
-		wp_enqueue_script(
-			'pfb-pdfjs',
-			$url . 'assets/js/vendor/pdf.min.mjs',
-			array(),
-			'4.9.155',
-			true
-		);
-
+		// page-flip (UMD, exposes St global)
 		wp_enqueue_script(
 			'pfb-pageflip',
 			$url . 'assets/js/vendor/page-flip.browser.js',
@@ -44,11 +36,11 @@ class PFB_Shortcode {
 			true
 		);
 
-		// App
+		// App (ES module — imports pdf.js internally)
 		wp_enqueue_script(
 			'pfb-flipbook',
 			$url . 'assets/js/flipbook.js',
-			array( 'pfb-pdfjs', 'pfb-pageflip' ),
+			array( 'pfb-pageflip' ),
 			$v,
 			true
 		);
@@ -57,7 +49,7 @@ class PFB_Shortcode {
 			'workerUrl' => $url . 'assets/js/vendor/pdf.worker.min.mjs',
 		) );
 
-		// Add module type to pdf.js script tag
+		// Add type="module" to our flipbook script
 		add_filter( 'script_loader_tag', array( $this, 'add_module_type' ), 10, 3 );
 
 		wp_enqueue_style(
@@ -72,7 +64,7 @@ class PFB_Shortcode {
 	 * Add type="module" to pdf.js script tag.
 	 */
 	public function add_module_type( $tag, $handle, $src ) {
-		if ( 'pfb-pdfjs' === $handle ) {
+		if ( 'pfb-flipbook' === $handle ) {
 			$tag = str_replace( '<script ', '<script type="module" ', $tag );
 		}
 		return $tag;

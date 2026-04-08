@@ -128,17 +128,41 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.inner.appendChild(this.bookEl);
 			this.viewport.appendChild(this.inner);
 			this.wrapper.appendChild(this.viewport);
+
+			// Size the book container based on PDF aspect ratio
+			this.sizeViewport();
+			this._resizeHandler = () => this.sizeViewport();
+			window.addEventListener('resize', this._resizeHandler);
+		}
+
+		/**
+		 * Calculate and apply viewport/book dimensions from container width
+		 * and PDF page aspect ratio. In double-page mode the spread is 2 pages wide.
+		 */
+		sizeViewport() {
+			const wrapperWidth = this.wrapper.clientWidth;
+			const pageAspect = this.pageHeight / this.pageWidth; // e.g. 1.414 for A4
+			// In double-page (default) the spread shows 2 pages side by side
+			const spreadWidth = wrapperWidth;
+			const singlePageWidth = spreadWidth / 2;
+			const bookHeight = singlePageWidth * pageAspect;
+
+			this.bookEl.style.width = spreadWidth + 'px';
+			this.bookEl.style.height = bookHeight + 'px';
+			this.viewport.style.height = (bookHeight + 40) + 'px'; // 40px padding
 		}
 
 		/* ---------- StPageFlip init ---------- */
 		initFlipBook() {
-			const w = this.pageWidth;
-			const h = this.pageHeight;
+			const bookW = this.bookEl.clientWidth / 2; // single page width in DOM
+			const bookH = this.bookEl.clientHeight;
 
 			this.flipBook = new St.PageFlip(this.bookEl, {
-				width: w,
-				height: h,
+				width: bookW,
+				height: bookH,
 				size: 'stretch',
+				maxWidth: bookW,
+				maxHeight: bookH,
 				maxShadowOpacity: 0.3,
 				showCover: true,
 				mobileScrollSupport: true,

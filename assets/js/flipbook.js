@@ -56,7 +56,8 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.minZoom     = 0.5;
 			this.maxZoom     = 3;
 			this.singleMode  = false;
-			this.singleFocus = 'left';  // which page of the spread is centered
+			this.singleFocus = 'right'; // which side of the spread is shown in single mode
+			this.currentSinglePage = 0; // tracks page index in single mode
 			this.isFullscreen = false;
 			this.thumbsOpen   = false;
 			this.flipBook     = null;
@@ -134,19 +135,31 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 		/**
 		 * Size the viewport and book to fill the wrapper width, maintaining
-		 * the PDF page aspect ratio. A spread = 2 pages wide.
+		 * the PDF page aspect ratio.
+		 * Double-page: spread = 2 pages wide, so each page = half the book width.
+		 * Single-page: viewport height matches one full page at the book width / 2.
 		 */
 		sizeToFit() {
 			const w = this.wrapper.clientWidth;
 			const padding = 64; // 32px each side from CSS
 			const bookW = w - padding;
-			const singleW = bookW / 2;
-			const h = Math.round(singleW * this.pageRatio);
+			const singlePageW = bookW / 2;
+			const spreadH = Math.round(singlePageW * this.pageRatio);
 
-			this.baseHeight = h + 48; // include top/bottom padding
-			this.viewport.style.height = this.baseHeight + 'px';
+			// Book element always sized for the spread (StPageFlip needs this)
 			this.bookEl.style.width = bookW + 'px';
-			this.bookEl.style.height = h + 'px';
+			this.bookEl.style.height = spreadH + 'px';
+
+			if (this.singleMode) {
+				// In single mode, viewport shows one page's height at full zoom
+				// We scale 2× so one page fills the width, so visible height = spreadH * 2
+				const singleH = Math.round(bookW * this.pageRatio);
+				this.baseHeight = singleH + 48;
+			} else {
+				this.baseHeight = spreadH + 48;
+			}
+
+			this.viewport.style.height = this.baseHeight + 'px';
 
 			if (this.flipBook) {
 				this.flipBook.update();
@@ -173,7 +186,6 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.flipBook.loadFromHTML(this.bookEl.querySelectorAll('.pfb-page'));
 
 			this.flipBook.on('flip', () => {
-				this.singleFocus = 'left';
 				this.updatePageDisplay();
 			});
 		}
@@ -306,32 +318,49 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		/* ---------- Navigation ---------- */
 		prevPage() {
 			if (this.singleMode) {
-				if (this.singleFocus === 'right') {
-					this.singleFocus = 'left';
-					this.applyZoom();
-					this.updatePageDisplay();
-					return;
-				}
+				this.goToSinglePage(this.currentSinglePage - 1);
+				return;
 			}
 			this.flipBook.flipPrev();
-			this.singleFocus = this.singleMode ? 'right' : 'left';
 		}
 
 		nextPage() {
 			if (this.singleMode) {
-				const currentSpread = this.flipBook.getCurrentPageIndex();
-				const isSpread = this.flipBook.getOrientation() !== 'portrait';
-				if (isSpread && this.singleFocus === 'left') {
-					if (currentSpread + 1 < this.pageCount) {
-						this.singleFocus = 'right';
-						this.applyZoom();
-						this.updatePageDisplay();
-						return;
-					}
-				}
+				this.goToSinglePage(this.currentSinglePage + 1);
+				return;
 			}
 			this.flipBook.flipNext();
-			this.singleFocus = 'left';
+		}
+
+		/**
+		 * In single-page mode, navigate to a specific page index.
+		 * Determines which spread the page is on and which side (left/right)
+		 * to pan to. With showCover:true, page 0 is alone on the first spread,
+		 * then pages pair as [1,2], [3,4], etc.
+		 */
+		goToSinglePage(pageIdx) {
+			if (pageIdx < 0 || pageIdx >= this.pageCount) return;
+			this.currentSinglePage = pageIdx;
+
+			// Determine which side of the spread this page is on.
+			// Cover (page 0) = right side alone. After that: odd pages are left, even are right.
+			let side;
+			if (pageIdx === 0) {
+				side = 'right';
+			} else {
+				side = (pageIdx % 2 === 1) ? 'left' : 'right';
+			}
+
+			// Ensure StPageFlip is on the correct spread
+			const currentFlipPage = this.flipBook.getCurrentPageIndex();
+			if (currentFlipPage !== pageIdx) {
+				// turnToPage is instant — we use it here because we're panning, not flipping
+				this.flipBook.turnToPage(pageIdx);
+			}
+
+			this.singleFocus = side;
+			this.applyZoom();
+			this.updatePageDisplay();
 		}
 
 		/* ---------- View mode ---------- */
@@ -341,11 +370,18 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.btnViewMode.innerHTML = ICONS.doublePage;
 				this.btnViewMode.title = 'Two page view';
 				this.btnViewMode.setAttribute('aria-label', 'Two page view');
-				this.singleFocus = 'left';
+				// Start single mode on whatever page StPageFlip is currently showing
+				this.currentSinglePage = this.flipBook.getCurrentPageIndex();
+				this.singleFocus = 'right'; // cover starts on right
+				if (this.currentSinglePage > 0) {
+					this.singleFocus = (this.currentSinglePage % 2 === 1) ? 'left' : 'right';
+				}
+				this.sizeToFit();
 			} else {
 				this.btnViewMode.innerHTML = ICONS.singlePage;
 				this.btnViewMode.title = 'Single page view';
 				this.btnViewMode.setAttribute('aria-label', 'Single page view');
+				this.sizeToFit();
 			}
 			this.applyZoom();
 			this.updatePageDisplay();
@@ -410,9 +446,11 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 		/* ---------- Page display ---------- */
 		updatePageDisplay() {
-			let current = this.flipBook.getCurrentPageIndex();
-			if (this.singleMode && this.singleFocus === 'right') {
-				current = Math.min(current + 1, this.pageCount - 1);
+			let current;
+			if (this.singleMode) {
+				current = this.currentSinglePage;
+			} else {
+				current = this.flipBook.getCurrentPageIndex();
 			}
 			this.pageInput.value = current + 1;
 		}

@@ -150,12 +150,11 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.bookEl.style.width = bookW + 'px';
 			this.bookEl.style.height = spreadH + 'px';
 
-			if (this.singleMode && this.singleFocus !== 'center') {
-				// In single mode (multi-page), scale 2× so one page fills width
+			if (this.singleMode) {
+				// Single mode: 2× scale, so visible height = full page
 				const singleH = Math.round(bookW * this.pageRatio);
 				this.baseHeight = singleH + 48;
 			} else {
-				// Double-page mode, or single-page PDF (center, no scale)
 				this.baseHeight = spreadH + 48;
 			}
 
@@ -339,10 +338,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		 * Last page alone on a spread also returns 'center'.
 		 */
 		getPageSide(pageIdx) {
-			if (this.pageCount === 1) return 'center';
+			// With showCover:true, page 0 is always on the right half.
+			// After that: odd pages = left, even pages = right.
 			if (pageIdx === 0) return 'right';
-			// Last page, alone on its spread (odd page count means last is alone)
-			if (pageIdx === this.pageCount - 1 && this.pageCount % 2 === 0) return 'left';
 			return (pageIdx % 2 === 1) ? 'left' : 'right';
 		}
 
@@ -388,16 +386,25 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 					this.flipBook.flipPrev();
 				}
 
-				// After flip completes, slide to the actual target side
+				// After flip completes, snap to landing side, then animate to target
 				const onFlip = () => {
 					this.flipBook.off('flip', onFlip);
+					// First: render at landing position (no animation)
+					this.singleFocus = landingSide;
+					this.bookEl.classList.remove('pfb-animate-slide');
+					this.applyZoom();
+
 					if (landingSide !== newSide) {
-						// Animate the slide from landing side to target side
-						this.singleFocus = newSide;
-						this.bookEl.classList.add('pfb-animate-slide');
-						this.applyZoom();
+						// Next frame: animate slide to target side
+						requestAnimationFrame(() => {
+							this.singleFocus = newSide;
+							this.bookEl.classList.add('pfb-animate-slide');
+							this.applyZoom();
+							this.updatePageDisplay();
+						});
+					} else {
+						this.updatePageDisplay();
 					}
-					this.updatePageDisplay();
 				};
 				this.flipBook.on('flip', onFlip);
 			} else {
@@ -438,23 +445,16 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		}
 
 		applyZoom() {
-			let z = this.zoom;
-
-			if (this.singleMode && this.singleFocus !== 'center') {
-				// Scale 2× to make one page fill the width
-				z = this.zoom * 2;
-			}
+			const z = this.singleMode ? this.zoom * 2 : this.zoom;
 
 			this.bookEl.style.transform = 'scale(' + z + ')';
 			this.bookEl.style.transformOrigin = 'top center';
 
-			// In single mode, shift to show one page
-			if (this.singleMode && this.singleFocus !== 'center') {
+			if (this.singleMode) {
 				const shiftX = this.singleFocus === 'left' ? 25 : -25;
 				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
 			}
 
-			// Allow scrolling when zoomed beyond fit
 			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
 		}
 

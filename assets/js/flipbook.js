@@ -137,12 +137,14 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		 */
 		sizeToFit() {
 			const w = this.wrapper.clientWidth;
-			const singleW = w / 2;
+			const padding = 64; // 32px each side from CSS
+			const bookW = w - padding;
+			const singleW = bookW / 2;
 			const h = Math.round(singleW * this.pageRatio);
 
-			this.baseHeight = h;
-			this.viewport.style.height = h + 'px';
-			this.bookEl.style.width = w + 'px';
+			this.baseHeight = h + 48; // include top/bottom padding
+			this.viewport.style.height = this.baseHeight + 'px';
+			this.bookEl.style.width = bookW + 'px';
 			this.bookEl.style.height = h + 'px';
 
 			if (this.flipBook) {
@@ -179,11 +181,11 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		buildToolbar() {
 			this.toolbar = el('div', 'pfb-toolbar');
 
-			// Prev
-			this.btnPrev = btn(ICONS.prevPage, 'Previous page', () => this.prevPage());
-			this.toolbar.appendChild(this.btnPrev);
+			// === LEFT GROUP: pagination, view toggle, thumbnails ===
+			const left = el('div', 'pfb-toolbar-left');
 
-			// Page indicator
+			left.appendChild(btn(ICONS.prevPage, 'Previous page', () => this.prevPage()));
+
 			this.pageInput = el('input', 'pfb-page-input', {
 				type: 'number', min: '1', max: String(this.pageCount), value: '1',
 				'aria-label': 'Page number',
@@ -202,26 +204,24 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			pageWrap.appendChild(this.pageInput);
 			this.pageTotal = document.createTextNode(' / ' + this.pageCount);
 			pageWrap.appendChild(this.pageTotal);
-			this.toolbar.appendChild(pageWrap);
+			left.appendChild(pageWrap);
 
-			// Next
-			this.btnNext = btn(ICONS.nextPage, 'Next page', () => this.nextPage());
-			this.toolbar.appendChild(this.btnNext);
+			left.appendChild(btn(ICONS.nextPage, 'Next page', () => this.nextPage()));
+			left.appendChild(el('span', 'pfb-sep'));
 
-			// Separator
-			this.toolbar.appendChild(el('span', 'pfb-sep'));
-
-			// View mode toggle
 			this.btnViewMode = btn(ICONS.singlePage, 'Single page view', () => this.toggleViewMode());
-			this.toolbar.appendChild(this.btnViewMode);
+			left.appendChild(this.btnViewMode);
+			left.appendChild(el('span', 'pfb-sep'));
 
-			// Separator
-			this.toolbar.appendChild(el('span', 'pfb-sep'));
+			left.appendChild(btn(ICONS.thumbnails, 'Thumbnails', () => this.toggleThumbnails()));
 
-			// Zoom out
-			this.toolbar.appendChild(btn(ICONS.zoomOut, 'Zoom out', () => this.setZoom(this.zoom - 0.25)));
+			this.toolbar.appendChild(left);
 
-			// Zoom slider
+			// === CENTER GROUP: zoom ===
+			const center = el('div', 'pfb-toolbar-center');
+
+			center.appendChild(btn(ICONS.zoomOut, 'Zoom out', () => this.setZoom(this.zoom - 0.25)));
+
 			this.zoomSlider = el('input', 'pfb-zoom-slider', {
 				type: 'range', min: '50', max: '300', value: '100', step: '5',
 				'aria-label': 'Zoom level',
@@ -229,23 +229,25 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.zoomSlider.addEventListener('input', () => {
 				this.setZoom(parseInt(this.zoomSlider.value, 10) / 100);
 			});
-			this.toolbar.appendChild(this.zoomSlider);
+			center.appendChild(this.zoomSlider);
 
-			// Zoom in
-			this.toolbar.appendChild(btn(ICONS.zoomIn, 'Zoom in', () => this.setZoom(this.zoom + 0.25)));
+			center.appendChild(btn(ICONS.zoomIn, 'Zoom in', () => this.setZoom(this.zoom + 0.25)));
 
-			// Separator
-			this.toolbar.appendChild(el('span', 'pfb-sep'));
+			this.zoomLabel = el('span', 'pfb-zoom-label');
+			this.zoomLabel.textContent = '100%';
+			center.appendChild(this.zoomLabel);
 
-			// Fullscreen
+			this.toolbar.appendChild(center);
+
+			// === RIGHT GROUP: fullscreen, download ===
+			const right = el('div', 'pfb-toolbar-right');
+
 			this.btnFullscreen = btn(ICONS.fullscreen, 'Fullscreen', () => this.toggleFullscreen());
-			this.toolbar.appendChild(this.btnFullscreen);
+			right.appendChild(this.btnFullscreen);
 
-			// Download
-			this.toolbar.appendChild(btn(ICONS.download, 'Download PDF', () => this.downloadPdf()));
+			right.appendChild(btn(ICONS.download, 'Download PDF', () => this.downloadPdf()));
 
-			// Thumbnails
-			this.toolbar.appendChild(btn(ICONS.thumbnails, 'Thumbnails', () => this.toggleThumbnails()));
+			this.toolbar.appendChild(right);
 
 			this.wrapper.appendChild(this.toolbar);
 		}
@@ -334,13 +336,13 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		setZoom(level) {
 			this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, level));
 			this.zoomSlider.value = Math.round(this.zoom * 100);
+			this.zoomLabel.textContent = Math.round(this.zoom * 100) + '%';
 			this.applyZoom();
 		}
 
 		applyZoom() {
 			const z = this.singleMode ? this.zoom * 2 : this.zoom;
-			const h = Math.round(this.baseHeight * z);
-			this.viewport.style.height = h + 'px';
+			// Viewport height stays fixed at baseHeight — scroll for zoomed content
 			this.bookEl.style.transform = 'scale(' + z + ')';
 			this.bookEl.style.transformOrigin = 'top center';
 
@@ -350,7 +352,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
 			}
 
-			// Allow scrolling when zoomed beyond 1×
+			// Allow scrolling when zoomed beyond fit
 			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
 		}
 

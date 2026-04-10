@@ -207,41 +207,43 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		buildToolbar() {
 			this.toolbar = el('div', 'pfb-toolbar');
 
-			// === LEFT GROUP: pagination, view toggle, thumbnails ===
-			const left = el('div', 'pfb-toolbar-left');
+			// === LEFT GROUP: pagination, view toggle, thumbnails (multi-page only) ===
+			if (this.pageCount > 1) {
+				const left = el('div', 'pfb-toolbar-left');
 
-			left.appendChild(btn(ICONS.prevPage, 'Previous page', () => this.prevPage()));
+				left.appendChild(btn(ICONS.prevPage, 'Previous page', () => this.prevPage()));
 
-			this.pageInput = el('input', 'pfb-page-input', {
-				type: 'number', min: '1', max: String(this.pageCount), value: '1',
-				'aria-label': 'Page number',
-			});
-			this.pageInput.addEventListener('change', () => {
-				let n = parseInt(this.pageInput.value, 10);
-				if (n >= 1 && n <= this.pageCount) {
-					this.flipBook.turnToPage(n - 1);
-				}
-			});
-			this.pageInput.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter') this.pageInput.blur();
-			});
+				this.pageInput = el('input', 'pfb-page-input', {
+					type: 'number', min: '1', max: String(this.pageCount), value: '1',
+					'aria-label': 'Page number',
+				});
+				this.pageInput.addEventListener('change', () => {
+					let n = parseInt(this.pageInput.value, 10);
+					if (n >= 1 && n <= this.pageCount) {
+						this.flipBook.turnToPage(n - 1);
+					}
+				});
+				this.pageInput.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') this.pageInput.blur();
+				});
 
-			const pageWrap = el('span', 'pfb-page-indicator');
-			pageWrap.appendChild(this.pageInput);
-			this.pageTotal = document.createTextNode(' / ' + this.pageCount);
-			pageWrap.appendChild(this.pageTotal);
-			left.appendChild(pageWrap);
+				const pageWrap = el('span', 'pfb-page-indicator');
+				pageWrap.appendChild(this.pageInput);
+				this.pageTotal = document.createTextNode(' / ' + this.pageCount);
+				pageWrap.appendChild(this.pageTotal);
+				left.appendChild(pageWrap);
 
-			left.appendChild(btn(ICONS.nextPage, 'Next page', () => this.nextPage()));
-			left.appendChild(el('span', 'pfb-sep'));
+				left.appendChild(btn(ICONS.nextPage, 'Next page', () => this.nextPage()));
+				left.appendChild(el('span', 'pfb-sep'));
 
-			this.btnViewMode = btn(ICONS.singlePage, 'Single page view', () => this.toggleViewMode());
-			left.appendChild(this.btnViewMode);
-			left.appendChild(el('span', 'pfb-sep'));
+				this.btnViewMode = btn(ICONS.singlePage, 'Single page view', () => this.toggleViewMode());
+				left.appendChild(this.btnViewMode);
+				left.appendChild(el('span', 'pfb-sep'));
 
-			left.appendChild(btn(ICONS.thumbnails, 'Thumbnails', () => this.toggleThumbnails()));
+				left.appendChild(btn(ICONS.thumbnails, 'Thumbnails', () => this.toggleThumbnails()));
 
-			this.toolbar.appendChild(left);
+				this.toolbar.appendChild(left);
+			}
 
 			// === CENTER GROUP: zoom ===
 			const center = el('div', 'pfb-toolbar-center');

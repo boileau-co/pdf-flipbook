@@ -150,12 +150,12 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.bookEl.style.width = bookW + 'px';
 			this.bookEl.style.height = spreadH + 'px';
 
-			if (this.singleMode) {
-				// In single mode, viewport shows one page's height at full zoom
-				// We scale 2× so one page fills the width, so visible height = spreadH * 2
+			if (this.singleMode && this.singleFocus !== 'center') {
+				// In single mode (multi-page), scale 2× so one page fills width
 				const singleH = Math.round(bookW * this.pageRatio);
 				this.baseHeight = singleH + 48;
 			} else {
+				// Double-page mode, or single-page PDF (center, no scale)
 				this.baseHeight = spreadH + 48;
 			}
 
@@ -371,17 +371,32 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			this.singleFocus = newSide;
 
 			if (oldSpread !== newSpread) {
-				// Different spread — use flip animation, then reposition after
+				// Different spread — flip animation first.
+				// Position on the "landing" side so flip looks natural,
+				// then animate slide to the target side after flip completes.
+				const goingForward = pageIdx > oldPage;
+				const landingSide = goingForward ? 'left' : 'right';
+
+				// Temporarily set focus to landing side so the flip
+				// doesn't cause a visual jump
+				this.singleFocus = landingSide;
 				this.bookEl.classList.remove('pfb-animate-slide');
-				if (pageIdx > oldPage) {
+
+				if (goingForward) {
 					this.flipBook.flipNext();
 				} else {
 					this.flipBook.flipPrev();
 				}
-				// After flip completes, ensure correct position
+
+				// After flip completes, slide to the actual target side
 				const onFlip = () => {
 					this.flipBook.off('flip', onFlip);
-					this.applyZoom();
+					if (landingSide !== newSide) {
+						// Animate the slide from landing side to target side
+						this.singleFocus = newSide;
+						this.bookEl.classList.add('pfb-animate-slide');
+						this.applyZoom();
+					}
 					this.updatePageDisplay();
 				};
 				this.flipBook.on('flip', onFlip);
@@ -423,17 +438,19 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		}
 
 		applyZoom() {
-			const z = this.singleMode ? this.zoom * 2 : this.zoom;
-			// Viewport height stays fixed at baseHeight — scroll for zoomed content
+			let z = this.zoom;
+
+			if (this.singleMode && this.singleFocus !== 'center') {
+				// Scale 2× to make one page fill the width
+				z = this.zoom * 2;
+			}
+
 			this.bookEl.style.transform = 'scale(' + z + ')';
 			this.bookEl.style.transformOrigin = 'top center';
 
 			// In single mode, shift to show one page
-			if (this.singleMode) {
-				let shiftX = 0;
-				if (this.singleFocus === 'left') shiftX = 25;
-				else if (this.singleFocus === 'right') shiftX = -25;
-				// 'center' = 0, no shift needed
+			if (this.singleMode && this.singleFocus !== 'center') {
+				const shiftX = this.singleFocus === 'left' ? 25 : -25;
 				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
 			}
 

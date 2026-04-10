@@ -389,18 +389,21 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				// After flip completes, snap to landing side, then animate to target
 				const onFlip = () => {
 					this.flipBook.off('flip', onFlip);
-					// First: render at landing position (no animation)
+					// Snap to landing position (no animation)
 					this.singleFocus = landingSide;
 					this.bookEl.classList.remove('pfb-animate-slide');
 					this.applyZoom();
 
 					if (landingSide !== newSide) {
-						// Next frame: animate slide to target side
+						// Double rAF: first forces a paint at landing position,
+						// second starts the animated transition to target
 						requestAnimationFrame(() => {
-							this.singleFocus = newSide;
-							this.bookEl.classList.add('pfb-animate-slide');
-							this.applyZoom();
-							this.updatePageDisplay();
+							requestAnimationFrame(() => {
+								this.singleFocus = newSide;
+								this.bookEl.classList.add('pfb-animate-slide');
+								this.applyZoom();
+								this.updatePageDisplay();
+							});
 						});
 					} else {
 						this.updatePageDisplay();
@@ -417,12 +420,14 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 		/* ---------- View mode ---------- */
 		toggleViewMode() {
+			// Single-page mode is meaningless for 1-page PDFs
+			if (this.pageCount <= 1) return;
+
 			this.singleMode = !this.singleMode;
 			if (this.singleMode) {
 				this.btnViewMode.innerHTML = ICONS.doublePage;
 				this.btnViewMode.title = 'Two page view';
 				this.btnViewMode.setAttribute('aria-label', 'Two page view');
-				// Start single mode on whatever page StPageFlip is currently showing
 				this.currentSinglePage = this.flipBook.getCurrentPageIndex();
 				this.singleFocus = this.getPageSide(this.currentSinglePage);
 				this.sizeToFit();
@@ -430,6 +435,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.btnViewMode.innerHTML = ICONS.singlePage;
 				this.btnViewMode.title = 'Single page view';
 				this.btnViewMode.setAttribute('aria-label', 'Single page view');
+				this.bookEl.classList.remove('pfb-animate-slide');
 				this.sizeToFit();
 			}
 			this.applyZoom();

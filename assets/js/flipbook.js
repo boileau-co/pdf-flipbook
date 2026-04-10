@@ -71,7 +71,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			try {
 				await this.loadPdf();
 				this.buildDOM();
-				this.initFlipBook();
+				if (this.pageCount > 1) {
+					this.initFlipBook();
+				}
 				this.buildToolbar();
 				this.buildThumbnailPanel();
 				this.bindKeyboard();
@@ -113,16 +115,21 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			// Viewport container — scrollable when zoomed
 			this.viewport = el('div', 'pfb-viewport');
 
-			// Book container — StPageFlip mounts here
+			// Book container — StPageFlip mounts here (or direct canvas for 1 page)
 			this.bookEl = el('div', 'pfb-book');
 
-			// Create page divs with canvases
-			this.pages.forEach((canvas, idx) => {
-				const pageDiv = el('div', 'pfb-page');
-				pageDiv.dataset.pageIndex = idx;
-				pageDiv.appendChild(canvas);
-				this.bookEl.appendChild(pageDiv);
-			});
+			if (this.pageCount <= 1) {
+				// Single-page PDF: render canvas directly, no StPageFlip
+				this.bookEl.classList.add('pfb-book-single');
+				this.bookEl.appendChild(this.pages[0]);
+			} else {
+				this.pages.forEach((canvas, idx) => {
+					const pageDiv = el('div', 'pfb-page');
+					pageDiv.dataset.pageIndex = idx;
+					pageDiv.appendChild(canvas);
+					this.bookEl.appendChild(pageDiv);
+				});
+			}
 
 			this.viewport.appendChild(this.bookEl);
 			this.wrapper.appendChild(this.viewport);
@@ -145,10 +152,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			const availW = w - padding;
 
 			if (this.pageCount <= 1) {
-				// Single-page PDF: size book for one page, centered
-				const pageW = Math.min(availW, availW * 0.6); // don't stretch too wide
-				const pageH = Math.round(pageW * this.pageRatio);
-				this.bookEl.style.width = pageW + 'px';
+				// Single-page PDF: canvas fills available width
+				const pageH = Math.round(availW * this.pageRatio);
+				this.bookEl.style.width = availW + 'px';
 				this.bookEl.style.height = pageH + 'px';
 				this.baseHeight = pageH + 48;
 			} else if (this.singleMode) {
@@ -177,16 +183,15 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 		/* ---------- StPageFlip init ---------- */
 		initFlipBook() {
-			const isSinglePage = this.pageCount <= 1;
 			this.flipBook = new St.PageFlip(this.bookEl, {
 				width: 100,
 				height: Math.round(100 * this.pageRatio),
 				size: 'stretch',
-				maxShadowOpacity: isSinglePage ? 0 : 0.3,
+				maxShadowOpacity: 0.3,
 				showCover: true,
 				mobileScrollSupport: true,
-				usePortrait: isSinglePage,
-				drawShadow: !isSinglePage,
+				usePortrait: false,
+				drawShadow: true,
 				flippingTime: 600,
 				startZIndex: 0,
 			});
@@ -364,67 +369,28 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 		/**
 		 * Navigate to a specific page in single-page mode.
-		 * Slides within a spread, flips when changing spreads.
+		 * Slides within a spread, uses instant turnToPage across spreads.
 		 */
 		goToSinglePage(pageIdx) {
 			if (pageIdx < 0 || pageIdx >= this.pageCount) return;
 
-			const oldPage = this.currentSinglePage;
-			const oldSpread = this.getSpreadIndex(oldPage);
+			const oldSpread = this.getSpreadIndex(this.currentSinglePage);
 			const newSpread = this.getSpreadIndex(pageIdx);
-			const newSide = this.getPageSide(pageIdx);
 
 			this.currentSinglePage = pageIdx;
-			this.singleFocus = newSide;
+			this.singleFocus = this.getPageSide(pageIdx);
 
 			if (oldSpread !== newSpread) {
-				// Different spread — flip animation first.
-				// Position on the "landing" side so flip looks natural,
-				// then animate slide to the target side after flip completes.
-				const goingForward = pageIdx > oldPage;
-				const landingSide = goingForward ? 'left' : 'right';
-
-				// Temporarily set focus to landing side so the flip
-				// doesn't cause a visual jump
-				this.singleFocus = landingSide;
+				// Different spread — instant jump
 				this.bookEl.classList.remove('pfb-animate-slide');
-
-				if (goingForward) {
-					this.flipBook.flipNext();
-				} else {
-					this.flipBook.flipPrev();
-				}
-
-				// After flip completes, snap to landing side, then animate to target
-				const onFlip = () => {
-					this.flipBook.off('flip', onFlip);
-					// Snap to landing position (no animation)
-					this.singleFocus = landingSide;
-					this.bookEl.classList.remove('pfb-animate-slide');
-					this.applyZoom();
-
-					if (landingSide !== newSide) {
-						// Double rAF: first forces a paint at landing position,
-						// second starts the animated transition to target
-						requestAnimationFrame(() => {
-							requestAnimationFrame(() => {
-								this.singleFocus = newSide;
-								this.bookEl.classList.add('pfb-animate-slide');
-								this.applyZoom();
-								this.updatePageDisplay();
-							});
-						});
-					} else {
-						this.updatePageDisplay();
-					}
-				};
-				this.flipBook.on('flip', onFlip);
+				this.flipBook.turnToPage(pageIdx);
 			} else {
 				// Same spread — animate the slide
 				this.bookEl.classList.add('pfb-animate-slide');
-				this.applyZoom();
-				this.updatePageDisplay();
 			}
+
+			this.applyZoom();
+			this.updatePageDisplay();
 		}
 
 		/* ---------- View mode ---------- */
@@ -511,8 +477,10 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			let current;
 			if (this.singleMode) {
 				current = this.currentSinglePage;
-			} else {
+			} else if (this.flipBook) {
 				current = this.flipBook.getCurrentPageIndex();
+			} else {
+				current = 0;
 			}
 			this.pageInput.value = current + 1;
 		}

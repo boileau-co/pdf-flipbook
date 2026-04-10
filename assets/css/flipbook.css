@@ -66,6 +66,14 @@
 	transition: transform 0.35s ease;
 }
 
+/* Single-page PDF: canvas directly in book */
+.pfb-book-single canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
 /* Pages */
 .pfb-page {
 	background: #fff;

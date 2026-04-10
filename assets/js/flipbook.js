@@ -275,14 +275,14 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				thumb.appendChild(label);
 
 				thumb.addEventListener('click', () => {
-					this.flipBook.flipToPage(idx);
+					this.flipBook.flip(idx);
 					this.toggleThumbnails();
 				});
 
 				grid.appendChild(thumb);
 			});
 			this.thumbPanel.appendChild(grid);
-			this.wrapper.appendChild(this.thumbPanel);
+			this.viewport.appendChild(this.thumbPanel);
 		}
 
 		/* ---------- Keyboard navigation ---------- */

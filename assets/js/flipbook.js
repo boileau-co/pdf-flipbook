@@ -488,7 +488,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			} else {
 				current = 0;
 			}
-			this.pageInput.value = current + 1;
+			if (this.pageInput) this.pageInput.value = current + 1;
 		}
 	}
 

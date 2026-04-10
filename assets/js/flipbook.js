@@ -142,19 +142,29 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		sizeToFit() {
 			const w = this.wrapper.clientWidth;
 			const padding = 64; // 32px each side from CSS
-			const bookW = w - padding;
-			const singlePageW = bookW / 2;
-			const spreadH = Math.round(singlePageW * this.pageRatio);
+			const availW = w - padding;
 
-			// Book element always sized for the spread (StPageFlip needs this)
-			this.bookEl.style.width = bookW + 'px';
-			this.bookEl.style.height = spreadH + 'px';
-
-			if (this.singleMode) {
-				// Single mode: 2× scale, so visible height = full page
-				const singleH = Math.round(bookW * this.pageRatio);
+			if (this.pageCount <= 1) {
+				// Single-page PDF: size book for one page, centered
+				const pageW = Math.min(availW, availW * 0.6); // don't stretch too wide
+				const pageH = Math.round(pageW * this.pageRatio);
+				this.bookEl.style.width = pageW + 'px';
+				this.bookEl.style.height = pageH + 'px';
+				this.baseHeight = pageH + 48;
+			} else if (this.singleMode) {
+				// Multi-page single mode: book is spread-sized, we scale 2×
+				const singlePageW = availW / 2;
+				const spreadH = Math.round(singlePageW * this.pageRatio);
+				this.bookEl.style.width = availW + 'px';
+				this.bookEl.style.height = spreadH + 'px';
+				const singleH = Math.round(availW * this.pageRatio);
 				this.baseHeight = singleH + 48;
 			} else {
+				// Multi-page double mode: spread layout
+				const singlePageW = availW / 2;
+				const spreadH = Math.round(singlePageW * this.pageRatio);
+				this.bookEl.style.width = availW + 'px';
+				this.bookEl.style.height = spreadH + 'px';
 				this.baseHeight = spreadH + 48;
 			}
 
@@ -167,17 +177,16 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 		/* ---------- StPageFlip init ---------- */
 		initFlipBook() {
-			// Use the PDF page's native aspect ratio for StPageFlip dimensions.
-			// size:'stretch' will scale to fill the bookEl container.
+			const isSinglePage = this.pageCount <= 1;
 			this.flipBook = new St.PageFlip(this.bookEl, {
 				width: 100,
 				height: Math.round(100 * this.pageRatio),
 				size: 'stretch',
-				maxShadowOpacity: 0.3,
+				maxShadowOpacity: isSinglePage ? 0 : 0.3,
 				showCover: true,
 				mobileScrollSupport: true,
-				usePortrait: false,
-				drawShadow: true,
+				usePortrait: isSinglePage,
+				drawShadow: !isSinglePage,
 				flippingTime: 600,
 				startZIndex: 0,
 			});

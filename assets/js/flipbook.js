@@ -333,34 +333,64 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		}
 
 		/**
-		 * In single-page mode, navigate to a specific page index.
-		 * Determines which spread the page is on and which side (left/right)
-		 * to pan to. With showCover:true, page 0 is alone on the first spread,
-		 * then pages pair as [1,2], [3,4], etc.
+		 * Get which side of the spread a page lives on.
+		 * Cover (page 0) is alone — returns 'center' for single-page PDFs
+		 * or 'right' for multi-page. After cover: odd=left, even=right.
+		 * Last page alone on a spread also returns 'center'.
+		 */
+		getPageSide(pageIdx) {
+			if (this.pageCount === 1) return 'center';
+			if (pageIdx === 0) return 'right';
+			// Last page, alone on its spread (odd page count means last is alone)
+			if (pageIdx === this.pageCount - 1 && this.pageCount % 2 === 0) return 'left';
+			return (pageIdx % 2 === 1) ? 'left' : 'right';
+		}
+
+		/**
+		 * Get the spread index for a given page.
+		 * Cover = spread 0, then [1,2]=spread 1, [3,4]=spread 2, etc.
+		 */
+		getSpreadIndex(pageIdx) {
+			if (pageIdx === 0) return 0;
+			return Math.ceil(pageIdx / 2);
+		}
+
+		/**
+		 * Navigate to a specific page in single-page mode.
+		 * Slides within a spread, flips when changing spreads.
 		 */
 		goToSinglePage(pageIdx) {
 			if (pageIdx < 0 || pageIdx >= this.pageCount) return;
+
+			const oldPage = this.currentSinglePage;
+			const oldSpread = this.getSpreadIndex(oldPage);
+			const newSpread = this.getSpreadIndex(pageIdx);
+			const newSide = this.getPageSide(pageIdx);
+
 			this.currentSinglePage = pageIdx;
+			this.singleFocus = newSide;
 
-			// Determine which side of the spread this page is on.
-			// Cover (page 0) = right side alone. After that: odd pages are left, even are right.
-			let side;
-			if (pageIdx === 0) {
-				side = 'right';
+			if (oldSpread !== newSpread) {
+				// Different spread — use flip animation, then reposition after
+				this.bookEl.classList.remove('pfb-animate-slide');
+				if (pageIdx > oldPage) {
+					this.flipBook.flipNext();
+				} else {
+					this.flipBook.flipPrev();
+				}
+				// After flip completes, ensure correct position
+				const onFlip = () => {
+					this.flipBook.off('flip', onFlip);
+					this.applyZoom();
+					this.updatePageDisplay();
+				};
+				this.flipBook.on('flip', onFlip);
 			} else {
-				side = (pageIdx % 2 === 1) ? 'left' : 'right';
+				// Same spread — animate the slide
+				this.bookEl.classList.add('pfb-animate-slide');
+				this.applyZoom();
+				this.updatePageDisplay();
 			}
-
-			// Ensure StPageFlip is on the correct spread
-			const currentFlipPage = this.flipBook.getCurrentPageIndex();
-			if (currentFlipPage !== pageIdx) {
-				// turnToPage is instant — we use it here because we're panning, not flipping
-				this.flipBook.turnToPage(pageIdx);
-			}
-
-			this.singleFocus = side;
-			this.applyZoom();
-			this.updatePageDisplay();
 		}
 
 		/* ---------- View mode ---------- */
@@ -372,10 +402,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.btnViewMode.setAttribute('aria-label', 'Two page view');
 				// Start single mode on whatever page StPageFlip is currently showing
 				this.currentSinglePage = this.flipBook.getCurrentPageIndex();
-				this.singleFocus = 'right'; // cover starts on right
-				if (this.currentSinglePage > 0) {
-					this.singleFocus = (this.currentSinglePage % 2 === 1) ? 'left' : 'right';
-				}
+				this.singleFocus = this.getPageSide(this.currentSinglePage);
 				this.sizeToFit();
 			} else {
 				this.btnViewMode.innerHTML = ICONS.singlePage;
@@ -403,7 +430,10 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 			// In single mode, shift to show one page
 			if (this.singleMode) {
-				const shiftX = this.singleFocus === 'right' ? -25 : 25;
+				let shiftX = 0;
+				if (this.singleFocus === 'left') shiftX = 25;
+				else if (this.singleFocus === 'right') shiftX = -25;
+				// 'center' = 0, no shift needed
 				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
 			}
 

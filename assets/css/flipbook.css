@@ -61,6 +61,11 @@
 	transform-origin: top center;
 }
 
+/* Smooth slide when panning within a spread in single-page mode */
+.pfb-book.pfb-animate-slide {
+	transition: transform 0.35s ease;
+}
+
 /* Pages */
 .pfb-page {
 	background: #fff;

@@ -58,6 +58,17 @@ class PFB_Shortcode {
 			array(),
 			$v
 		);
+
+		// Inject color overrides as CSS custom properties
+		$colors = PFB_Admin::get_colors();
+		$css = sprintf(
+			'.pfb-wrapper { --pfb-bg: %s; --pfb-menu: %s; --pfb-accent: %s; --pfb-btn: %s; }',
+			esc_attr( $colors['pfb_color_background'] ),
+			esc_attr( $colors['pfb_color_menu'] ),
+			esc_attr( $colors['pfb_color_accent'] ),
+			esc_attr( $colors['pfb_color_button'] )
+		);
+		wp_add_inline_style( 'pfb-flipbook', $css );
 	}
 
 	/**

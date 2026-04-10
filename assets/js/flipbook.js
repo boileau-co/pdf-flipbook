@@ -73,6 +73,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				this.initFlipBook();
 				this.buildToolbar();
 				this.buildThumbnailPanel();
+				this.bindKeyboard();
 				this.updatePageDisplay();
 			} catch (err) {
 				console.error('PDF Flipbook error:', err);
@@ -274,7 +275,7 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				thumb.appendChild(label);
 
 				thumb.addEventListener('click', () => {
-					this.flipBook.turnToPage(idx);
+					this.flipBook.flipToPage(idx);
 					this.toggleThumbnails();
 				});
 
@@ -282,6 +283,24 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			});
 			this.thumbPanel.appendChild(grid);
 			this.wrapper.appendChild(this.thumbPanel);
+		}
+
+		/* ---------- Keyboard navigation ---------- */
+		bindKeyboard() {
+			// Make wrapper focusable and focus on click
+			this.wrapper.setAttribute('tabindex', '0');
+			this.wrapper.style.outline = 'none';
+			this.viewport.addEventListener('click', () => this.wrapper.focus());
+
+			this.wrapper.addEventListener('keydown', (e) => {
+				if (e.key === 'ArrowLeft') {
+					e.preventDefault();
+					this.prevPage();
+				} else if (e.key === 'ArrowRight') {
+					e.preventDefault();
+					this.nextPage();
+				}
+			});
 		}
 
 		/* ---------- Navigation ---------- */

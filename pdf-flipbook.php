@@ -3,7 +3,7 @@
  * Plugin Name: PDF Flipbook by Boileau & Co.
  * Plugin URI: https://github.com/boileau-co/pdf-flipbook
  * Description: A lightweight flipbook-style PDF viewer powered by pdf.js and page-flip. Use [pdf_flipbook url="..."] to embed.
- * Version: 3.0.5
+ * Version: 3.1.0
  * Author: Boileau & Co.
  * Author URI: https://boileau.co
  * Text Domain: pdf-flipbook
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PFB_VERSION', '3.0.5' );
+define( 'PFB_VERSION', '3.1.0' );
 define( 'PFB_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PFB_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PFB_PLUGIN_FILE', __FILE__ );
@@ -45,8 +45,12 @@ if ( file_exists( PFB_PLUGIN_DIR . 'plugin-update-checker/plugin-update-checker.
 }
 
 require_once PFB_PLUGIN_DIR . 'includes/class-pfb-shortcode.php';
+require_once PFB_PLUGIN_DIR . 'includes/class-pfb-admin.php';
 
 function pfb_init() {
 	new PFB_Shortcode();
+	if ( is_admin() ) {
+		new PFB_Admin();
+	}
 }
 add_action( 'plugins_loaded', 'pfb_init' );

@@ -75,7 +75,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 					this.initFlipBook();
 				}
 				this.buildToolbar();
-				this.buildThumbnailPanel();
+				if (this.pageCount > 1) {
+					this.buildThumbnailPanel();
+				}
 				this.bindKeyboard();
 				this.updatePageDisplay();
 			} catch (err) {
@@ -240,7 +242,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				left.appendChild(this.btnViewMode);
 				left.appendChild(el('span', 'pfb-sep'));
 
-				left.appendChild(btn(ICONS.thumbnails, 'Thumbnails', () => this.toggleThumbnails()));
+				const thumbBtn = btn(ICONS.thumbnails, 'Thumbnails', () => this.toggleThumbnails());
+				thumbBtn.classList.add('pfb-btn-thumbs');
+				left.appendChild(thumbBtn);
 
 				this.toolbar.appendChild(left);
 			}

@@ -333,4 +333,8 @@
 	.pfb-zoom-label {
 		display: none;
 	}
+	.pfb-sep,
+	.pfb-btn-thumbs {
+		display: none;
+	}
 }

@@ -150,27 +150,42 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		 */
 		sizeToFit() {
 			const w = this.wrapper.clientWidth;
-			const padding = 64; // 32px each side from CSS
-			const availW = w - padding;
+			const padding = 64;
+			let availW = w - padding;
+
+			// In fullscreen, cap dimensions so the book fits within
+			// the available viewport height (screen minus toolbar ~52px, minus padding)
+			const maxH = this.isFullscreen
+				? window.innerHeight - 100 // toolbar + padding
+				: Infinity;
 
 			if (this.pageCount <= 1) {
-				// Single-page PDF: canvas fills available width
-				const pageH = Math.round(availW * this.pageRatio);
+				let pageH = Math.round(availW * this.pageRatio);
+				if (pageH > maxH) {
+					pageH = maxH;
+					availW = Math.round(pageH / this.pageRatio);
+				}
 				this.bookEl.style.width = availW + 'px';
 				this.bookEl.style.height = pageH + 'px';
 				this.baseHeight = pageH + 48;
 			} else if (this.singleMode) {
-				// Multi-page single mode: book is spread-sized, we scale 2×
 				const singlePageW = availW / 2;
-				const spreadH = Math.round(singlePageW * this.pageRatio);
+				let spreadH = Math.round(singlePageW * this.pageRatio);
+				if (spreadH > maxH) {
+					spreadH = maxH;
+					availW = Math.round((spreadH / this.pageRatio) * 2);
+				}
 				this.bookEl.style.width = availW + 'px';
 				this.bookEl.style.height = spreadH + 'px';
 				const singleH = Math.round(availW * this.pageRatio);
 				this.baseHeight = singleH + 48;
 			} else {
-				// Multi-page double mode: spread layout
 				const singlePageW = availW / 2;
-				const spreadH = Math.round(singlePageW * this.pageRatio);
+				let spreadH = Math.round(singlePageW * this.pageRatio);
+				if (spreadH > maxH) {
+					spreadH = maxH;
+					availW = Math.round((spreadH / this.pageRatio) * 2);
+				}
 				this.bookEl.style.width = availW + 'px';
 				this.bookEl.style.height = spreadH + 'px';
 				this.baseHeight = spreadH + 48;
@@ -483,6 +498,8 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 					this.wrapper.classList.add('pfb-fullscreen');
 					this.btnFullscreen.innerHTML = ICONS.exitFull;
 					this.btnFullscreen.title = 'Exit fullscreen';
+					this.sizeToFit();
+					this.applyZoom();
 				});
 			} else {
 				document.exitFullscreen().then(() => {
@@ -490,6 +507,8 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 					this.wrapper.classList.remove('pfb-fullscreen');
 					this.btnFullscreen.innerHTML = ICONS.fullscreen;
 					this.btnFullscreen.title = 'Fullscreen';
+					this.sizeToFit();
+					this.applyZoom();
 				});
 			}
 		}

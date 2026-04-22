@@ -445,8 +445,9 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 				const shiftX = this.singleFocus === 'left' ? 25 : -25;
 				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
 			} else if (this.flipBook) {
+				// Resize for solo vs spread pages
 				this.updateCoverCenter();
-				return; // updateCoverCenter sets transform + overflow
+				return;
 			}
 
 			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
@@ -458,21 +459,40 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 		 * last page may be alone on the left. Shift the book so the solo
 		 * page appears centered.
 		 */
+		/**
+		 * Check if the current page is a solo page (cover or last alone).
+		 */
+		isSoloPage() {
+			if (!this.flipBook) return false;
+			const current = this.flipBook.getCurrentPageIndex();
+			if (current === 0) return true;
+			if (current === this.pageCount - 1 && this.pageCount % 2 === 0) return true;
+			return false;
+		}
+
+		/**
+		 * Resize book for solo vs spread pages and update StPageFlip.
+		 */
 		updateCoverCenter() {
 			if (!this.flipBook || this.singleMode) return;
-			const z = this.zoom;
-			const current = this.flipBook.getCurrentPageIndex();
-			const isFirst = current === 0;
-			const isLast = current === this.pageCount - 1 && this.pageCount % 2 === 0;
+			const w = this.wrapper.clientWidth;
+			const padding = 64;
+			const availW = w - padding;
+			const solo = this.isSoloPage();
 
-			if (isFirst || isLast) {
-				const shift = isFirst ? 25 : -25;
-				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shift + '%)';
-			} else {
-				this.bookEl.style.transform = 'scale(' + z + ')';
-			}
-			this.bookEl.classList.add('pfb-animate-slide');
-			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
+			const bookW = solo ? availW / 2 : availW;
+			const singlePageW = solo ? bookW : bookW / 2;
+			const spreadH = Math.round(singlePageW * this.pageRatio);
+
+			this.bookEl.style.width = bookW + 'px';
+			this.bookEl.style.height = spreadH + 'px';
+			this.baseHeight = spreadH + 48;
+			this.viewport.style.height = this.baseHeight + 'px';
+			this.flipBook.update();
+
+			// Reset transform (no translateX needed — book is properly sized)
+			this.bookEl.style.transform = 'scale(' + this.zoom + ')';
+			this.viewport.style.overflow = this.zoom > 1 ? 'auto' : 'hidden';
 		}
 
 		/* ---------- Fullscreen ---------- */

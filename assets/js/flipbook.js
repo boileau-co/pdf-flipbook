@@ -202,7 +202,11 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 
 			this.flipBook.on('flip', () => {
 				this.updatePageDisplay();
+				this.updateCoverCenter();
 			});
+
+			// Center the cover on initial load
+			this.updateCoverCenter();
 		}
 
 		/* ---------- Toolbar ---------- */
@@ -440,8 +444,34 @@ import * as pdfjsLib from './vendor/pdf.min.mjs';
 			if (this.singleMode) {
 				const shiftX = this.singleFocus === 'left' ? 25 : -25;
 				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shiftX + '%)';
+			} else if (this.flipBook) {
+				this.updateCoverCenter();
+				return; // updateCoverCenter sets transform + overflow
 			}
 
+			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
+		}
+
+		/**
+		 * Center the book when showing a solo page (cover or last page).
+		 * With showCover:true, page 0 is alone on the right half and the
+		 * last page may be alone on the left. Shift the book so the solo
+		 * page appears centered.
+		 */
+		updateCoverCenter() {
+			if (!this.flipBook || this.singleMode) return;
+			const z = this.zoom;
+			const current = this.flipBook.getCurrentPageIndex();
+			const isFirst = current === 0;
+			const isLast = current === this.pageCount - 1 && this.pageCount % 2 === 0;
+
+			if (isFirst || isLast) {
+				const shift = isFirst ? 25 : -25;
+				this.bookEl.style.transform = 'scale(' + z + ') translateX(' + shift + '%)';
+			} else {
+				this.bookEl.style.transform = 'scale(' + z + ')';
+			}
+			this.bookEl.classList.add('pfb-animate-slide');
 			this.viewport.style.overflow = z > 1 ? 'auto' : 'hidden';
 		}
 
